@@ -1,15 +1,8 @@
-import * as FauxReact from "./FauxReact";
-
-let tree = new Map();
-let lastTree = new Map();
-let errorComponent;
-let errorProps;
-let errorParent;
-
-const renderer = {};
+import sharedState from "./state";
 
 function renderClassComponent(Component, props, error) {
-  const [instance] = FauxReact.useState(() => new Component(props));
+  const instanceCursor = sharedState.hookCursor++;
+  const instance = sharedState[instanceCursor] || new Component(props);
   if (error) {
     instance.componentDidCatch(error);
   }
@@ -17,10 +10,10 @@ function renderClassComponent(Component, props, error) {
 }
 
 function flushOrphans() {
-  for (const [parent, children] of lastTree) {
-    if (tree.has(parent)) {
+  for (const [parent, children] of sharedState.lastTree) {
+    if (sharedState.tree.has(parent)) {
       for (const child of children) {
-        if (!tree.get(parent).has(child)) {
+        if (!sharedState.tree.get(parent).has(child)) {
           child.remove();
         }
       }
@@ -46,6 +39,7 @@ function createNode(element) {
 }
 
 function updateNode(element, node) {
+  console.log(element);
   if (node.nodeName.toLowerCase() !== element.type) {
     const newNode = document.createElement(element.type);
     node.parentElement.replaceChild(newNode, node);
@@ -72,31 +66,32 @@ function updateNode(element, node) {
 
 export function render(rootElement, parent) {
   renderComponent(rootElement, parent);
-  renderer.render = render;
-  renderer.update = function() {
+  sharedState.parent = parent;
+  sharedState.renderer.render = render;
+  sharedState.renderer.update = function() {
     setTimeout(() => {
-      FauxReact.hookCursor = 0;
-      if (lastTree) {
-        lastTree.clear();
+      sharedState.hookCursor = 0;
+      if (sharedState.lastTree) {
+        sharedState.lastTree.clear();
       }
-      lastTree = tree;
-      tree = new Map();
+      sharedState.lastTree = sharedState.tree;
+      sharedState.tree = new Map();
       renderComponent(rootElement, parent);
       flushOrphans();
-      FauxReact.flushEffects();
+      flushEffects();
     });
   };
 }
 
 function commit({ element, parent, createNode, updateNode }) {
-  const lastFamily = lastTree.get(parent);
+  const lastFamily = sharedState.lastTree.get(parent);
   let child = null;
 
-  if (!tree.has(parent)) {
-    tree.set(parent, new Set());
+  if (!sharedState.tree.has(parent)) {
+    sharedState.tree.set(parent, new Set());
   }
 
-  const family = tree.get(parent);
+  const family = sharedState.tree.get(parent);
 
   if (lastFamily) {
     const lastFamilyArray = [...lastFamily];
@@ -118,7 +113,7 @@ function commit({ element, parent, createNode, updateNode }) {
   }
 }
 
-function renderComponent(element = null, parent) {
+function renderComponent(element = null, parent = sharedState.parent) {
   if (element === null) {
     return;
   }
@@ -137,24 +132,24 @@ function renderComponent(element = null, parent) {
   }
 
   if (typeof element.type === "string") {
-    commit({
+    return commit({
       element,
       parent,
       createNode: createNode,
       updateNode: updateNode
     });
-    return;
   }
 
   if (typeof element.type === "function") {
     try {
       if (
-        element.type.prototype.reactComponentKey === FauxReact.reactComponentKey
+        element.type.prototype.reactComponentKey ===
+        sharedState.reactComponentKey
       ) {
         if (element.type.prototype.componentDidCatch) {
-          errorComponent = element.type;
-          errorProps = element.props;
-          errorParent = parent;
+          sharedState.errorComponent = element.type;
+          sharedState.errorProps = element.props;
+          sharedState.errorParent = parent;
         }
         return renderComponent(
           renderClassComponent(element.type, element.props),
@@ -163,13 +158,17 @@ function renderComponent(element = null, parent) {
       }
       return renderComponent(element.type(element.props), parent);
     } catch (error) {
-      if (errorComponent) {
+      if (sharedState.errorComponent) {
         renderComponent(
-          renderClassComponent(errorComponent, errorProps, error),
-          errorParent
+          renderClassComponent(
+            sharedState.errorComponent,
+            sharedState.errorProps,
+            error
+          ),
+          sharedState.errorParent
         );
       } else {
-        throw error;
+        // throw error;
       }
     }
   }
@@ -179,6 +178,33 @@ function renderComponent(element = null, parent) {
   }
 }
 
-FauxReact.setRendererOptions({
-  renderer
-});
+export function flushEffects() {
+  sharedState.states.length = sharedState.hookCursor;
+  sharedState.hookCursor = 0;
+
+  if (!sharedState.oldEffects) {
+    sharedState.effects.forEach(([effect]) => {
+      effect();
+    });
+  } else {
+    sharedState.effects.forEach(([effect, dependencies], index) => {
+      const oldEffect = sharedState.oldEffects[index];
+      const oldDeps = oldEffect[1] || [];
+      if (
+        dependencies.every(
+          (dependency, dependencyIndex) =>
+            dependency === oldDeps[dependencyIndex]
+        )
+      ) {
+        return;
+      }
+
+      if (typeof oldEffect[0] === "function") {
+        oldEffect[0]();
+      }
+      sharedState.effects[index][0] = effect();
+    });
+  }
+  sharedState.oldEffects = sharedState.effects;
+  sharedState.effects = [];
+}

@@ -1,4 +1,4 @@
-import React from "./react";
+import * as React from "./FauxReact";
 import "./styles.css";
 
 function Button(props) {

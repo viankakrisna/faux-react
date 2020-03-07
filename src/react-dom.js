@@ -27,15 +27,52 @@ const renderer = {
       }
     }
   },
+  createTextNode(element) {
+    return document.createTextNode(element);
+  },
+  updateTextNode(element, node) {
+    console.log(node);
+    node.nodeValue = element;
+    return node;
+  },
+  createNode(element) {
+    return document.createElement(element.type);
+  },
+  updateNode: (element, node) => {
+    if (node.nodeName.toLowerCase() !== element.type) {
+      const newNode = document.createElement(element.type);
+      node.parentElement.replaceChild(newNode, node);
+      node = newNode;
+    }
+    const { children, style, ...props } = element.props;
+    Object.assign(
+      node,
+      Object.fromEntries(
+        Object.entries(props).map(([key, value]) => {
+          if (key.startsWith("on")) {
+            return [key.toLowerCase(), value];
+          }
+          return [key, value];
+        })
+      )
+    );
+    Object.assign(node.style || {}, style);
+    return node;
+  },
   render(rootElement, parent) {
     renderer.renderComponent(rootElement, parent);
     renderer.update = function() {
-      react.hookCursor = 0;
-      renderer.lastTree = renderer.tree;
-      renderer.tree = new Map();
-      renderer.renderComponent(rootElement, parent);
-      renderer.flushOrphans();
-      react.runEffects();
+      setTimeout(() => {
+        react.hookCursor = 0;
+        if (renderer.lastTreee) {
+          renderer.lastTree.clear();
+        }
+        renderer.lastTree = renderer.tree;
+        renderer.tree = new Map();
+        renderer.renderComponent(rootElement, parent);
+        renderer.flushOrphans();
+        react.flushEffects();
+      });
     };
   },
   commit({ element, parent, createNode, updateNode }) {
@@ -52,13 +89,13 @@ const renderer = {
       const lastFamilyArray = [...lastFamily];
       const lastChild = lastFamilyArray[family.size];
       if (lastChild) {
-        child = updateNode(lastChild);
+        child = updateNode(element, lastChild);
       } else {
-        child = updateNode(createNode());
+        child = updateNode(element, createNode(element));
         parent.appendChild(child);
       }
     } else {
-      child = updateNode(createNode());
+      child = updateNode(element, createNode(element));
       parent.appendChild(child);
     }
     family.add(child);
@@ -80,11 +117,8 @@ const renderer = {
       return renderer.commit({
         element,
         parent,
-        createNode: () => document.createTextNode(element),
-        updateNode: dom => {
-          dom.nodeValue = element;
-          return dom;
-        }
+        createNode: renderer.createTextNode,
+        updateNode: renderer.updateTextNode
       });
     }
 
@@ -92,35 +126,20 @@ const renderer = {
       renderer.commit({
         element,
         parent,
-        createNode: () => document.createElement(element.type),
-        updateNode: node => {
-          const { children, style, ...props } = element.props;
-          Object.assign(
-            node,
-            Object.fromEntries(
-              Object.entries(props).map(([key, value]) => {
-                if (key.startsWith("on")) {
-                  return [key.toLowerCase(), value];
-                }
-                return [key, value];
-              })
-            )
-          );
-          Object.assign(node.style, style);
-          return node;
-        }
+        createNode: renderer.createNode,
+        updateNode: renderer.updateNode
       });
       return;
     }
 
     if (typeof element.type === "function") {
       try {
-        if (element.type.prototype.componentDidCatch) {
-          renderer.errorComponent = element.type;
-          renderer.errorProps = element.props;
-          renderer.errorParent = parent;
-        }
         if (element.type.reactComponentKey === react.reactComponentKey) {
+          if (element.type.prototype.componentDidCatch) {
+            renderer.errorComponent = element.type;
+            renderer.errorProps = element.props;
+            renderer.errorParent = parent;
+          }
           return renderer.renderComponent(
             renderer.renderClassComponent(element.type, element.props),
             parent
@@ -128,14 +147,18 @@ const renderer = {
         }
         return renderer.renderComponent(element.type(element.props), parent);
       } catch (error) {
-        renderer.renderComponent(
-          renderer.renderClassComponent(
-            renderer.errorComponent,
-            renderer.errorProps,
-            error
-          ),
-          renderer.errorParent
-        );
+        if (renderer.errorComponent) {
+          renderer.renderComponent(
+            renderer.renderClassComponent(
+              renderer.errorComponent,
+              renderer.errorProps,
+              error
+            ),
+            renderer.errorParent
+          );
+        } else {
+          throw error;
+        }
       }
     }
 

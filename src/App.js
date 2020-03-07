@@ -34,7 +34,7 @@ function Todo() {
         <input
           type="text"
           value={text}
-          onInput={e => setText(e.target.value)}
+          onChange={e => setText(e.target.value)}
         />
       </form>
       <ul>

@@ -132,23 +132,28 @@ const React = {
   }
 };
 
-React.Component.reactComponentKey = React.reactComponentKey;
-React.Suspense = class Suspense extends React.Component {
-  state = {
+React.Component.prototype.reactComponentKey = React.reactComponentKey;
+
+React.Suspense = function Suspense(...args) {
+  this.state = {
     showFallback: false
   };
-  componentDidCatch(thing) {
-    this.setState({ showFallback: true });
-    if (thing.then) {
-      thing.then(() => {
-        this.setState({ showFallback: false });
-      });
-    }
-  }
+  React.Component.call(this, ...args);
+};
 
-  render() {
-    return this.state.showFallback ? this.props.fallback : this.props.children;
+React.Suspense.prototype = Object.create(React.Component.prototype);
+
+React.Suspense.prototype.componentDidCatch = function componentDidCatch(thing) {
+  this.setState({ showFallback: true });
+  if (thing.then) {
+    thing.then(() => {
+      this.setState({ showFallback: false });
+    });
   }
+};
+
+React.Suspense.prototype.render = function render() {
+  return this.state.showFallback ? this.props.fallback : this.props.children;
 };
 
 export default React;

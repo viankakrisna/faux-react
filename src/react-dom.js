@@ -47,6 +47,9 @@ const renderer = {
       Object.fromEntries(
         Object.entries(props).map(([key, value]) => {
           if (key.startsWith("on")) {
+            if (key === "onChange" && element.type === "input") {
+              key = "oninput";
+            }
             return [key.toLowerCase(), value];
           }
           return [key, value];
@@ -131,7 +134,9 @@ const renderer = {
 
     if (typeof element.type === "function") {
       try {
-        if (element.type.reactComponentKey === react.reactComponentKey) {
+        if (
+          element.type.prototype.reactComponentKey === react.reactComponentKey
+        ) {
           if (element.type.prototype.componentDidCatch) {
             renderer.errorComponent = element.type;
             renderer.errorProps = element.props;

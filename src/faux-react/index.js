@@ -1,4 +1,3 @@
-// ONE OBJECT TO RULE ALL THE STATE
 const shared = {
   hookCursor: 0,
   states: [],

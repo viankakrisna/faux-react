@@ -31,7 +31,6 @@ const renderer = {
     return document.createTextNode(element);
   },
   updateTextNode(element, node) {
-    console.log(node);
     node.nodeValue = element;
     return node;
   },

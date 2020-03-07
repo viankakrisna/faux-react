@@ -1,5 +1,5 @@
-import * as React from "./FauxReact";
-import * as ReactDOM from "./FauxReactDom";
+import * as React from "./faux-react";
+import * as ReactDOM from "./faux-react/dom";
 
 import App from "./App";
 

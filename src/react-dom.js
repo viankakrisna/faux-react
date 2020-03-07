@@ -1,20 +1,20 @@
 import react from "./react";
 
 const renderer = {
-  tree: new Map(),
-  lastTree: new Map(),
-  renderClassComponent(Component, props, error) {
+  __tree: new Map(),
+  __lastTree: new Map(),
+  __renderClassComponent(Component, props, error) {
     const [instance] = react.useState(() => new Component(props));
     if (error) {
       instance.componentDidCatch(error);
     }
     return instance.render();
   },
-  flushOrphans() {
-    for (const [parent, children] of renderer.lastTree) {
-      if (renderer.tree.has(parent)) {
+  __flushOrphans() {
+    for (const [parent, children] of renderer.__lastTree) {
+      if (renderer.__tree.has(parent)) {
         for (const child of children) {
-          if (!renderer.tree.get(parent).has(child)) {
+          if (!renderer.__tree.get(parent).has(child)) {
             child.remove();
           }
         }
@@ -25,17 +25,17 @@ const renderer = {
       }
     }
   },
-  createTextNode(element) {
+  __createTextNode(element) {
     return document.createTextNode(element);
   },
-  updateTextNode(element, node) {
+  __updateTextNode(element, node) {
     node.nodeValue = element;
     return node;
   },
-  createNode(element) {
+  __createNode(element) {
     return document.createElement(element.type);
   },
-  updateNode: (element, node) => {
+  __updateNode: (element, node) => {
     if (node.nodeName.toLowerCase() !== element.type) {
       const newNode = document.createElement(element.type);
       node.parentElement.replaceChild(newNode, node);
@@ -60,30 +60,30 @@ const renderer = {
     return node;
   },
   render(rootElement, parent) {
-    renderer.renderComponent(rootElement, parent);
-    renderer.update = function() {
+    renderer.__renderComponent(rootElement, parent);
+    renderer.__update = function() {
       setTimeout(() => {
-        react.hookCursor = 0;
-        if (renderer.lastTreee) {
-          renderer.lastTree.clear();
+        react.__hookCursor = 0;
+        if (renderer.__lastTree) {
+          renderer.__lastTree.clear();
         }
-        renderer.lastTree = renderer.tree;
-        renderer.tree = new Map();
-        renderer.renderComponent(rootElement, parent);
-        renderer.flushOrphans();
-        react.flushEffects();
+        renderer.__lastTree = renderer.__tree;
+        renderer.__tree = new Map();
+        renderer.__renderComponent(rootElement, parent);
+        renderer.__flushOrphans();
+        react.__flushEffects();
       });
     };
   },
-  commit({ element, parent, createNode, updateNode }) {
-    const lastFamily = renderer.lastTree.get(parent);
+  __commit({ element, parent, createNode, updateNode }) {
+    const lastFamily = renderer.__lastTree.get(parent);
     let child = null;
 
-    if (!renderer.tree.has(parent)) {
-      renderer.tree.set(parent, new Set());
+    if (!renderer.__tree.has(parent)) {
+      renderer.__tree.set(parent, new Set());
     }
 
-    const family = renderer.tree.get(parent);
+    const family = renderer.__tree.get(parent);
 
     if (lastFamily) {
       const lastFamilyArray = [...lastFamily];
@@ -101,10 +101,10 @@ const renderer = {
     family.add(child);
 
     if (element.props && element.props.children) {
-      renderer.renderComponent(element.props.children, child);
+      renderer.__renderComponent(element.props.children, child);
     }
   },
-  renderComponent(element = null, parent = renderer.parent) {
+  __renderComponent(element = null, parent = renderer.__parent) {
     if (element === null) {
       return;
     }
@@ -114,20 +114,20 @@ const renderer = {
     }
 
     if (["string", "number"].includes(typeof element)) {
-      return renderer.commit({
+      return renderer.__commit({
         element,
         parent,
-        createNode: renderer.createTextNode,
-        updateNode: renderer.updateTextNode
+        createNode: renderer.__createTextNode,
+        updateNode: renderer.__updateTextNode
       });
     }
 
     if (typeof element.type === "string") {
-      renderer.commit({
+      renderer.__commit({
         element,
         parent,
-        createNode: renderer.createNode,
-        updateNode: renderer.updateNode
+        createNode: renderer.__createNode,
+        updateNode: renderer.__updateNode
       });
       return;
     }
@@ -135,28 +135,29 @@ const renderer = {
     if (typeof element.type === "function") {
       try {
         if (
-          element.type.prototype.reactComponentKey === react.reactComponentKey
+          element.type.prototype.__reactComponentKey ===
+          react.__reactComponentKey
         ) {
           if (element.type.prototype.componentDidCatch) {
-            renderer.errorComponent = element.type;
-            renderer.errorProps = element.props;
-            renderer.errorParent = parent;
+            renderer.__errorComponent = element.type;
+            renderer.__errorProps = element.props;
+            renderer.__errorParent = parent;
           }
-          return renderer.renderComponent(
-            renderer.renderClassComponent(element.type, element.props),
+          return renderer.__renderComponent(
+            renderer.__renderClassComponent(element.type, element.props),
             parent
           );
         }
-        return renderer.renderComponent(element.type(element.props), parent);
+        return renderer.__renderComponent(element.type(element.props), parent);
       } catch (error) {
-        if (renderer.errorComponent) {
-          renderer.renderComponent(
-            renderer.renderClassComponent(
-              renderer.errorComponent,
-              renderer.errorProps,
+        if (renderer.__errorComponent) {
+          renderer.__renderComponent(
+            renderer.__renderClassComponent(
+              renderer.__errorComponent,
+              renderer.__errorProps,
               error
             ),
-            renderer.errorParent
+            renderer.__errorParent
           );
         } else {
           throw error;
@@ -165,11 +166,11 @@ const renderer = {
     }
 
     if (Array.isArray(element)) {
-      element.forEach(el => renderer.renderComponent(el, parent));
+      element.forEach(el => renderer.__renderComponent(el, parent));
     }
   }
 };
 
-react.renderer = renderer;
+react.__renderer = renderer;
 
 export default renderer;

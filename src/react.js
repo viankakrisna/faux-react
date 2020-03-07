@@ -1,30 +1,22 @@
 const React = {
-  hookCursor: 0,
-  states: [],
-  effects: [],
-  reactComponentKey: {},
-  renderer() {
+  __hookCursor: 0,
+  __states: [],
+  __effects: [],
+  __reactComponentKey: {},
+  __renderer() {
     throw new Error("Please include a valid renderer");
   },
-  Component(props) {
-    this.props = props;
-    this.setState = function(newState) {
-      this.state = {
-        ...newState
-      };
-    };
-  },
-  flushEffects() {
-    React.states.length = React.hookCursor;
-    React.hookCursor = 0;
+  __flushEffects() {
+    React.__states.length = React.__hookCursor;
+    React.__hookCursor = 0;
 
-    if (!React.oldEffects) {
-      React.effects.forEach(([effect]) => {
+    if (!React.__oldEffects) {
+      React.__effects.forEach(([effect]) => {
         effect();
       });
     } else {
-      React.effects.forEach(([effect, dependencies], index) => {
-        const oldEffect = React.oldEffects[index];
+      React.__effects.forEach(([effect, dependencies], index) => {
+        const oldEffect = React.__oldEffects[index];
         const oldDeps = oldEffect[1] || [];
         if (
           dependencies.every(
@@ -38,60 +30,69 @@ const React = {
         if (typeof oldEffect[0] === "function") {
           oldEffect[0]();
         }
-        React.effects[index][0] = effect();
+        React.__effects[index][0] = effect();
       });
     }
-    React.oldEffects = React.effects;
-    React.effects = [];
+    React.__oldEffects = React.__effects;
+    React.__effects = [];
+  },
+  Component(props) {
+    this.props = props;
+    this.setState = function(newState) {
+      this.state = {
+        ...newState
+      };
+    };
   },
   useRef(value) {
     return React.useState(() => ({ current: value }));
   },
   useMemo(expensive, deps) {
-    const valueCursor = React.hookCursor++;
-    const depsCursor = React.hookCursor++;
+    const valueCursor = React.__hookCursor++;
+    const depsCursor = React.__hookCursor++;
 
-    const oldDeps = React.states[depsCursor] || [];
+    const oldDeps = React.__states[depsCursor] || [];
     if (deps.some((dep, index) => dep !== oldDeps[index])) {
-      React.states[valueCursor] = expensive();
+      React.__states[valueCursor] = expensive();
     }
-    React.states[depsCursor] = deps;
+    React.__states[depsCursor] = deps;
 
-    const value = React.states[valueCursor];
+    const value = React.__states[valueCursor];
     return value;
   },
   useCallback(callback, deps) {
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     return React.useMemo(() => callback, deps);
   },
   useState(initialState) {
-    const stateCursor = React.hookCursor++;
-    const callbackCursor = React.hookCursor++;
-    if (React.states[stateCursor] === undefined) {
-      React.states[stateCursor] =
+    const stateCursor = React.__hookCursor++;
+    const callbackCursor = React.__hookCursor++;
+    if (React.__states[stateCursor] === undefined) {
+      React.__states[stateCursor] =
         typeof initialState === "function" ? initialState() : initialState;
     }
-    const currentState = React.states[stateCursor];
+    const currentState = React.__states[stateCursor];
     const updater =
-      React.states[callbackCursor] ||
+      React.__states[callbackCursor] ||
       function stateUpdater(newState) {
-        const currentState = React.states[stateCursor];
+        const currentState = React.__states[stateCursor];
         const updatedState =
           typeof newState === "function" ? newState(currentState) : newState;
         if (updatedState !== currentState) {
-          React.states[stateCursor] = updatedState;
-          React.renderer.update();
+          React.__states[stateCursor] = updatedState;
+          React.__renderer.__update();
         }
       };
     return [currentState, updater];
   },
   useEffect(cb, dependencies) {
-    React.effects.push([cb, dependencies]);
+    React.__effects.push([cb, dependencies]);
   },
   useLayoutEffect(cb, dependencies) {
-    React.effects.push([cb, dependencies]);
+    React.__effects.push([cb, dependencies]);
   },
   useContext(context) {
-    return context.currentValue;
+    return context.__currentValue;
   },
   Suspense(props) {
     return props.children;
@@ -102,37 +103,29 @@ const React = {
   createRef() {
     return { current: null };
   },
-  createContext(currentValue) {
+  createContext(__currentValue) {
     const context = {
-      currentValue,
-      subscribers: new Set(),
+      __currentValue,
       Provider({ value, children }) {
-        if (value !== currentValue) {
-          context.currentValue = value;
+        if (value !== __currentValue) {
+          context.__currentValue = value;
         }
         return children;
       }
     };
     return context;
   },
-  isReactComponent(type) {
-    if (React.Component === type.__proto__) {
-      return true;
-    }
-    return false;
-  },
   createElement(type, props, ...children) {
     props = props || {};
     props.children = children.flat(Infinity);
     return {
       type,
-      instance: React.isReactComponent(type) ? new type(props) : null,
       props
     };
   }
 };
 
-React.Component.prototype.reactComponentKey = React.reactComponentKey;
+React.Component.prototype.__reactComponentKey = React.__reactComponentKey;
 
 React.Suspense = function Suspense(...args) {
   this.state = {

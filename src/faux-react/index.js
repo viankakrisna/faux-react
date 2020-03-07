@@ -1,20 +1,20 @@
-import sharedState from "./state";
+import shared from "./shared";
 
 export function useRef(value) {
   return useState(() => ({ current: value }));
 }
 
 export function useMemo(expensive, deps) {
-  const valueCursor = sharedState.hookCursor++;
-  const depsCursor = sharedState.hookCursor++;
+  const valueCursor = shared.hookCursor++;
+  const depsCursor = shared.hookCursor++;
 
-  const oldDeps = sharedState.states[depsCursor] || [];
+  const oldDeps = shared.states[depsCursor] || [];
   if (deps.some((dep, index) => dep !== oldDeps[index])) {
-    sharedState.states[valueCursor] = expensive();
+    shared.states[valueCursor] = expensive();
   }
-  sharedState.states[depsCursor] = deps;
+  shared.states[depsCursor] = deps;
 
-  const value = sharedState.states[valueCursor];
+  const value = shared.states[valueCursor];
   return value;
 }
 
@@ -24,33 +24,33 @@ export function useCallback(callback, deps) {
 }
 
 export function useState(initialState) {
-  const stateCursor = sharedState.hookCursor++;
-  const callbackCursor = sharedState.hookCursor++;
-  if (sharedState.states[stateCursor] === undefined) {
-    sharedState.states[stateCursor] =
+  const stateCursor = shared.hookCursor++;
+  const callbackCursor = shared.hookCursor++;
+  if (shared.states[stateCursor] === undefined) {
+    shared.states[stateCursor] =
       typeof initialState === "function" ? initialState() : initialState;
   }
-  const currentState = sharedState.states[stateCursor];
+  const currentState = shared.states[stateCursor];
   const updater =
-    sharedState.states[callbackCursor] ||
+    shared.states[callbackCursor] ||
     function stateUpdater(newState) {
-      const currentState = sharedState.states[stateCursor];
+      const currentState = shared.states[stateCursor];
       const updatedState =
         typeof newState === "function" ? newState(currentState) : newState;
       if (updatedState !== currentState) {
-        sharedState.states[stateCursor] = updatedState;
-        sharedState.renderer.update();
+        shared.states[stateCursor] = updatedState;
+        shared.renderer.update();
       }
     };
   return [currentState, updater];
 }
 
 export function useEffect(cb, dependencies) {
-  sharedState.effects.push([cb, dependencies]);
+  shared.effects.push([cb, dependencies]);
 }
 
 export function useLayoutEffect(cb, dependencies) {
-  sharedState.effects.push([cb, dependencies]);
+  shared.effects.push([cb, dependencies]);
 }
 
 export function useContext(context) {
@@ -96,7 +96,7 @@ export function Component(props) {
   };
 }
 
-Component.prototype.reactComponentKey = sharedState.reactComponentKey;
+Component.prototype.reactComponentKey = shared.reactComponentKey;
 
 export function Suspense(...args) {
   this.state = {

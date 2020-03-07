@@ -104,9 +104,7 @@ export default function App() {
           <Counter />
           <Todo />
           <ErrorBoundary fallback={error => error.message}>
-            <div>
-              <ErrorComponent />
-            </div>
+            <ErrorComponent />
           </ErrorBoundary>
           <React.Suspense fallback="Loading">
             <PromisedComponent />

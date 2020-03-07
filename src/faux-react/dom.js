@@ -1,17 +1,17 @@
-import sharedState from "./state";
+import shared from "./shared";
 
 export function render(rootElement, parent) {
   renderComponents(rootElement, parent);
-  sharedState.parent = parent;
-  sharedState.renderer.render = render;
-  sharedState.renderer.update = function updater() {
+  shared.parent = parent;
+  shared.renderer.render = render;
+  shared.renderer.update = function updater() {
     setTimeout(() => {
-      sharedState.hookCursor = 0;
-      if (sharedState.lastTree) {
-        sharedState.lastTree.clear();
+      shared.hookCursor = 0;
+      if (shared.lastTree) {
+        shared.lastTree.clear();
       }
-      sharedState.lastTree = sharedState.tree;
-      sharedState.tree = new Map();
+      shared.lastTree = shared.tree;
+      shared.tree = new Map();
       renderComponents(rootElement, parent);
       removeUnusedDomNodes();
       runComponentEffects();
@@ -19,37 +19,7 @@ export function render(rootElement, parent) {
   };
 }
 
-function commit({ element, parent, createNode, updateNode }) {
-  const lastFamily = sharedState.lastTree.get(parent);
-  let child = null;
-
-  if (!sharedState.tree.has(parent)) {
-    sharedState.tree.set(parent, new Set());
-  }
-
-  const family = sharedState.tree.get(parent);
-
-  if (lastFamily) {
-    const lastFamilyArray = [...lastFamily];
-    const lastChild = lastFamilyArray[family.size];
-    if (lastChild) {
-      child = updateNode(element, lastChild);
-    } else {
-      child = updateNode(element, createNode(element));
-      parent.appendChild(child);
-    }
-  } else {
-    child = updateNode(element, createNode(element));
-    parent.appendChild(child);
-  }
-  family.add(child);
-
-  if (element.props && element.props.children) {
-    renderComponents(element.props.children, child);
-  }
-}
-
-function renderComponents(element = null, parent = sharedState.parent) {
+function renderComponents(element = null, parent = shared.parent) {
   if (element === null) {
     return;
   }
@@ -79,13 +49,12 @@ function renderComponents(element = null, parent = sharedState.parent) {
   if (typeof element.type === "function") {
     try {
       if (
-        element.type.prototype.reactComponentKey ===
-        sharedState.reactComponentKey
+        element.type.prototype.reactComponentKey === shared.reactComponentKey
       ) {
         if (element.type.prototype.componentDidCatch) {
-          sharedState.errorComponent = element.type;
-          sharedState.errorProps = element.props;
-          sharedState.errorParent = parent;
+          shared.errorComponent = element.type;
+          shared.errorProps = element.props;
+          shared.errorParent = parent;
         }
         return renderComponents(
           renderClassComponent(element.type, element.props),
@@ -94,17 +63,14 @@ function renderComponents(element = null, parent = sharedState.parent) {
       }
       return renderComponents(element.type(element.props), parent);
     } catch (error) {
-      if (sharedState.errorComponent) {
+      if (shared.errorComponent) {
         renderComponents(
-          renderClassComponent(
-            sharedState.errorComponent,
-            sharedState.errorProps,
-            error
-          ),
-          sharedState.errorParent
+          renderClassComponent(shared.errorComponent, shared.errorProps, error),
+          shared.errorParent
         );
       } else {
-        // throw error;
+        console.error(error);
+        throw error;
       }
     }
   }
@@ -114,17 +80,56 @@ function renderComponents(element = null, parent = sharedState.parent) {
   }
 }
 
-export function runComponentEffects() {
-  sharedState.states.length = sharedState.hookCursor;
-  sharedState.hookCursor = 0;
+function renderClassComponent(Component, props, error) {
+  const instanceCursor = shared.hookCursor++;
+  const instance = shared[instanceCursor] || new Component(props);
+  if (error) {
+    instance.componentDidCatch(error);
+  }
+  return instance.render();
+}
 
-  if (!sharedState.oldEffects) {
-    sharedState.effects.forEach(([effect]) => {
+function commit({ element, parent, createNode, updateNode }) {
+  const lastFamily = shared.lastTree.get(parent);
+  let child = null;
+
+  if (!shared.tree.has(parent)) {
+    shared.tree.set(parent, new Set());
+  }
+
+  const family = shared.tree.get(parent);
+
+  if (lastFamily) {
+    const lastFamilyArray = [...lastFamily];
+    const lastChild = lastFamilyArray[family.size];
+    if (lastChild) {
+      child = updateNode(element, lastChild);
+    } else {
+      child = updateNode(element, createNode(element));
+      parent.appendChild(child);
+    }
+  } else {
+    child = updateNode(element, createNode(element));
+    parent.appendChild(child);
+  }
+  family.add(child);
+
+  if (element.props && element.props.children) {
+    renderComponents(element.props.children, child);
+  }
+}
+
+export function runComponentEffects() {
+  shared.states.length = shared.hookCursor;
+  shared.hookCursor = 0;
+
+  if (!shared.oldEffects) {
+    shared.effects.forEach(([effect]) => {
       effect();
     });
   } else {
-    sharedState.effects.forEach(([effect, dependencies], index) => {
-      const oldEffect = sharedState.oldEffects[index];
+    shared.effects.forEach(([effect, dependencies], index) => {
+      const oldEffect = shared.oldEffects[index];
       const oldDeps = oldEffect[1] || [];
       if (
         dependencies.every(
@@ -138,27 +143,18 @@ export function runComponentEffects() {
       if (typeof oldEffect[0] === "function") {
         oldEffect[0]();
       }
-      sharedState.effects[index][0] = effect();
+      shared.effects[index][0] = effect();
     });
   }
-  sharedState.oldEffects = sharedState.effects;
-  sharedState.effects = [];
-}
-
-function renderClassComponent(Component, props, error) {
-  const instanceCursor = sharedState.hookCursor++;
-  const instance = sharedState[instanceCursor] || new Component(props);
-  if (error) {
-    instance.componentDidCatch(error);
-  }
-  return instance.render();
+  shared.oldEffects = shared.effects;
+  shared.effects = [];
 }
 
 function removeUnusedDomNodes() {
-  for (const [parent, children] of sharedState.lastTree) {
-    if (sharedState.tree.has(parent)) {
+  for (const [parent, children] of shared.lastTree) {
+    if (shared.tree.has(parent)) {
       for (const child of children) {
-        if (!sharedState.tree.get(parent).has(child)) {
+        if (!shared.tree.get(parent).has(child)) {
           child.remove();
         }
       }
@@ -184,7 +180,6 @@ function createNode(element) {
 }
 
 function updateNode(element, node) {
-  console.log(element);
   if (node.nodeName.toLowerCase() !== element.type) {
     const newNode = document.createElement(element.type);
     node.parentElement.replaceChild(newNode, node);

@@ -1,3 +1,41 @@
-.App {
+* {
+  box-sizing: border-box;
+}
+
+body {
   font-family: sans-serif;
+  margin: 0;
+  padding: 0;
+}
+
+button {
+  display: inline-flex;
+  background: indigo;
+  padding-left: 1em;
+  padding-right: 1em;
+  padding-top: 0.5em;
+  padding-bottom: 0.5em;
+  border: 0;
+  line-height: 2em;
+  border-radius: 0.2em;
+  color: white;
+  margin: 0.25em;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+}
+
+input {
+  display: flex;
+  flex: 1;
+  width: 100%;
+  line-height: 2em;
+  padding: 0.5em;
+  margin: 0.25em;
+}
+
+li {
+  display: flex;
+  align-items: center;
 }

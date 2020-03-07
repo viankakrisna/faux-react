@@ -184,6 +184,7 @@ function renderComponents(element = null, parent = shared.parent) {
   if (typeof element.type === "function") {
     try {
       if (
+        element.type.prototype &&
         element.type.prototype.reactComponentKey === shared.reactComponentKey
       ) {
         if (element.type.prototype.componentDidCatch) {

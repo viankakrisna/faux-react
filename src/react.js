@@ -14,7 +14,7 @@ const React = {
       };
     };
   },
-  runEffects() {
+  flushEffects() {
     React.states.length = React.hookCursor;
     React.hookCursor = 0;
 
@@ -133,5 +133,22 @@ const React = {
 };
 
 React.Component.reactComponentKey = React.reactComponentKey;
+React.Suspense = class Suspense extends React.Component {
+  state = {
+    showFallback: false
+  };
+  componentDidCatch(thing) {
+    this.setState({ showFallback: true });
+    if (thing.then) {
+      thing.then(() => {
+        this.setState({ showFallback: false });
+      });
+    }
+  }
+
+  render() {
+    return this.state.showFallback ? this.props.fallback : this.props.children;
+  }
+};
 
 export default React;

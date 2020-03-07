@@ -73,15 +73,18 @@ function Counter() {
 class ErrorBoundary extends React.Component {
   state = {};
   componentDidCatch(error) {
-    console.log("caught an error");
     this.setState({ error });
   }
   render() {
     return (
       <div>
-        {this.state.error
-          ? this.props.fallback(this.state.error)
-          : this.props.children}
+        {this.state.error ? (
+          <pre style={{ backgroundColor: "red", padding: "1em" }}>
+            {this.props.fallback(this.state.error)}
+          </pre>
+        ) : (
+          this.props.children
+        )}
       </div>
     );
   }
@@ -105,8 +108,21 @@ export default function App() {
               <ErrorComponent />
             </div>
           </ErrorBoundary>
+          <React.Suspense fallback="Loading">
+            <PromisedComponent />
+          </React.Suspense>
         </div>
       </CounterContext.Provider>
     </>
   );
+}
+
+function PromisedComponent() {
+  const [result, setResult] = React.useState(null);
+  if (!result) {
+    throw new Promise(resolve => setTimeout(resolve, 3000)).then(() =>
+      setResult("Resolved")
+    );
+  }
+  return <div>{result}</div>;
 }

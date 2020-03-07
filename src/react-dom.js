@@ -1,10 +1,8 @@
 import react from "./react";
 
 const renderer = {
-  rendered: null,
   tree: new Map(),
   lastTree: new Map(),
-  primitives: ["number", "string", "symbol"],
   renderClassComponent(Component, props, error) {
     const [instance] = react.useState(() => new Component(props));
     if (error) {

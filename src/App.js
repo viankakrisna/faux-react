@@ -70,22 +70,26 @@ function Counter() {
   );
 }
 
-// class ErrorBoundary extends React.Component {
-//   state = {};
-//   componentDidCatch(error) {
-//     console.log("caught an error");
-//     this.setState({ error });
-//   }
-//   render() {
-//     return (
-//       <div>
-//         {this.state.error
-//           ? this.props.fallback(this.state.error)
-//           : this.props.children}
-//       </div>
-//     );
-//   }
-// }
+class ErrorBoundary extends React.Component {
+  state = {};
+  componentDidCatch(error) {
+    console.log("caught an error");
+    this.setState({ error });
+  }
+  render() {
+    return (
+      <div>
+        {this.state.error
+          ? this.props.fallback(this.state.error)
+          : this.props.children}
+      </div>
+    );
+  }
+}
+
+function ErrorComponent() {
+  throw new Error("This is an error");
+}
 
 export default function App() {
   const [counter, setCounter] = React.useState(0);
@@ -96,6 +100,11 @@ export default function App() {
         <div className="App" style={{ textAlign: "center" }}>
           <Counter />
           <Todo />
+          <ErrorBoundary fallback={error => error.message}>
+            <div>
+              <ErrorComponent />
+            </div>
+          </ErrorBoundary>
         </div>
       </CounterContext.Provider>
     </>

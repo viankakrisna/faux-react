@@ -2,6 +2,7 @@ const React = {
   hookCursor: 0,
   states: [],
   effects: [],
+  reactComponentKey: {},
   renderer() {
     throw new Error("Please include a valid renderer");
   },
@@ -130,5 +131,7 @@ const React = {
     };
   }
 };
+
+React.Component.reactComponentKey = React.reactComponentKey;
 
 export default React;

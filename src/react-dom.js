@@ -5,6 +5,13 @@ const renderer = {
   tree: new Map(),
   lastTree: new Map(),
   primitives: ["number", "string", "symbol"],
+  renderClassComponent(Component, props, error) {
+    const [instance] = react.useState(() => new Component(props));
+    if (error) {
+      instance.componentDidCatch(error);
+    }
+    return instance.render();
+  },
   flushOrphans() {
     for (const [parent, children] of renderer.lastTree) {
       if (renderer.tree.has(parent)) {
@@ -21,16 +28,17 @@ const renderer = {
     }
   },
   render(rootElement, parent) {
-    renderer.commit(rootElement, parent);
+    renderer.renderComponent(rootElement, parent);
     renderer.update = function() {
       react.hookCursor = 0;
       renderer.lastTree = renderer.tree;
       renderer.tree = new Map();
-      renderer.commit(rootElement, parent);
+      renderer.renderComponent(rootElement, parent);
       renderer.flushOrphans();
+      react.runEffects();
     };
   },
-  renderElement({ element, parent, createNode, updateNode }) {
+  commit({ element, parent, createNode, updateNode }) {
     const lastFamily = renderer.lastTree.get(parent);
     let child = null;
 
@@ -56,10 +64,10 @@ const renderer = {
     family.add(child);
 
     if (element.props && element.props.children) {
-      renderer.commit(element.props.children, child);
+      renderer.renderComponent(element.props.children, child);
     }
   },
-  commit(element = null, parent = renderer.parent) {
+  renderComponent(element = null, parent = renderer.parent) {
     if (element === null) {
       return;
     }
@@ -69,7 +77,7 @@ const renderer = {
     }
 
     if (["string", "number"].includes(typeof element)) {
-      return renderer.renderElement({
+      return renderer.commit({
         element,
         parent,
         createNode: () => document.createTextNode(element),
@@ -81,7 +89,7 @@ const renderer = {
     }
 
     if (typeof element.type === "string") {
-      renderer.renderElement({
+      renderer.commit({
         element,
         parent,
         createNode: () => document.createElement(element.type),
@@ -106,11 +114,33 @@ const renderer = {
     }
 
     if (typeof element.type === "function") {
-      return renderer.commit(element.type(element.props), parent);
+      try {
+        if (element.type.prototype.componentDidCatch) {
+          renderer.errorComponent = element.type;
+          renderer.errorProps = element.props;
+          renderer.errorParent = parent;
+        }
+        if (element.type.reactComponentKey === react.reactComponentKey) {
+          return renderer.renderComponent(
+            renderer.renderClassComponent(element.type, element.props),
+            parent
+          );
+        }
+        return renderer.renderComponent(element.type(element.props), parent);
+      } catch (error) {
+        renderer.renderComponent(
+          renderer.renderClassComponent(
+            renderer.errorComponent,
+            renderer.errorProps,
+            error
+          ),
+          renderer.errorParent
+        );
+      }
     }
 
     if (Array.isArray(element)) {
-      element.forEach(el => renderer.commit(el, parent));
+      element.forEach(el => renderer.renderComponent(el, parent));
     }
   }
 };

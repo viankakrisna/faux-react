@@ -173,6 +173,7 @@ function renderComponents(element = null, parent = internalParent) {
   if (typeof element.type === "function") {
     try {
       if (
+        element.type.prototype &&
         element.type.prototype.reactComponentKey === internalReactComponentKey
       ) {
         if (element.type.prototype.componentDidCatch) {

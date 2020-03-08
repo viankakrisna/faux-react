@@ -33,10 +33,9 @@ export function useMemo(expensive, deps) {
 }
 
 function getComponentInstance(element) {
-  if (element.props.key) {
-    return element.props.key;
-  }
-  return element.props.type;
+  return element.props.type
+    ? element.props.type.toString() + element.props.key
+    : element.props.key;
 }
 
 export function useCallback(callback, deps) {

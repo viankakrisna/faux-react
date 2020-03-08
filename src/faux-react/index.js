@@ -66,7 +66,7 @@ export function useLayoutEffect(cb, dependencies) {
 }
 
 export function useContext(context) {
-  return context.currentValue;
+  return context._currentValue;
 }
 
 export function Fragment(props) {
@@ -77,12 +77,12 @@ export function createRef() {
   return { current: null };
 }
 
-export function createContext(currentValue) {
+export function createContext(_currentValue) {
   const context = {
-    currentValue,
+    _currentValue,
     Provider({ value, children }) {
-      if (value !== currentValue) {
-        context.currentValue = value;
+      if (value !== _currentValue) {
+        context._currentValue = value;
       }
       return children;
     }

@@ -135,9 +135,12 @@ Suspense.prototype.render = function render() {
 
 // START OF FAUX REACT-DOM
 export function render(rootElement, parent) {
-  renderComponents(rootElement, parent);
   _parent = parent;
   _renderer.render = render;
+
+  renderComponents(rootElement, parent);
+  runComponentEffects();
+
   _renderer.update = function updater() {
     setTimeout(() => {
       _hookCursor = 0;
@@ -148,6 +151,7 @@ export function render(rootElement, parent) {
       _tree = new Map();
       renderComponents(rootElement, parent);
       removeUnusedDomNodes();
+      _states.length = _hookCursor;
       runComponentEffects();
     });
   };
@@ -201,7 +205,9 @@ function renderComponents(element = null, parent = _parent) {
   }
 
   if (Array.isArray(element)) {
-    element.forEach(el => renderComponents(el, parent));
+    for (const el of element) {
+      renderComponents(el, parent);
+    }
   }
 }
 
@@ -245,16 +251,17 @@ function commit(element, parent, createNode, updateNode) {
 }
 
 export function runComponentEffects() {
-  _states.length = _hookCursor;
-  _hookCursor = 0;
-
   if (!_oldEffects) {
-    _effects.forEach(([effect]) => {
+    for (const [effect] of _effects) {
       effect();
-    });
+    }
   } else {
-    _effects.forEach(([effect, dependencies], index) => {
+    let index = 0;
+    for (const currentEffect of _effects) {
+      const [effect, dependencies] = currentEffect;
       const oldEffect = _oldEffects[index];
+      index++;
+
       const oldDeps = oldEffect[1] || [];
       if (
         dependencies.every(
@@ -262,14 +269,15 @@ export function runComponentEffects() {
             dependency === oldDeps[dependencyIndex]
         )
       ) {
-        return;
+        currentEffect[0] = null;
+        continue;
       }
 
       if (typeof oldEffect[0] === "function") {
         oldEffect[0]();
       }
-      _effects[index][0] = effect();
-    });
+      currentEffect[0] = effect();
+    }
   }
   _oldEffects = _effects;
   _effects = [];

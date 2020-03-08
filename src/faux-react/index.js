@@ -21,14 +21,14 @@ export function useRef(value) {
 export function useMemo(expensive, deps) {
   const valueCursor = _hookCursor++;
   const depsCursor = _hookCursor++;
-
-  const oldDeps = _hooks[depsCursor] || [];
+  const hooks = _hooks;
+  const oldDeps = hooks[depsCursor] || [];
   if (deps.some((dep, index) => dep !== oldDeps[index])) {
-    _hooks[valueCursor] = expensive();
+    hooks[valueCursor] = expensive();
   }
-  _hooks[depsCursor] = deps;
+  hooks[depsCursor] = deps;
 
-  const value = _hooks[valueCursor];
+  const value = hooks[valueCursor];
   return value;
 }
 
@@ -36,7 +36,7 @@ function getComponentInstance(element) {
   if (element.props.key) {
     return element.props.key;
   }
-  return element.type;
+  return element.props.type;
 }
 
 export function useCallback(callback, deps) {
@@ -48,21 +48,21 @@ export function useState(initialState) {
   const stateCursor = _hookCursor++;
   const callbackCursor = _hookCursor++;
   const component = _currentComponent;
-  if (_hooks[stateCursor] === undefined) {
-    _hooks[stateCursor] =
+  const hooks = _hooks;
+  if (hooks[stateCursor] === undefined) {
+    hooks[stateCursor] =
       typeof initialState === "function" ? initialState() : initialState;
   }
-  const currentState = _hooks[stateCursor];
+  const currentState = hooks[stateCursor];
   const updater =
-    _hooks[callbackCursor] ||
+    hooks[callbackCursor] ||
     function stateUpdater(newState) {
       _currentComponent = component;
-      _hooks = _componentHooksMap.get(_currentComponent);
-      const currentState = _hooks[stateCursor];
+      const currentState = hooks[stateCursor];
       const updatedState =
         typeof newState === "function" ? newState(currentState) : newState;
       if (updatedState !== currentState) {
-        _hooks[stateCursor] = updatedState;
+        hooks[stateCursor] = updatedState;
         _renderer.update();
       }
     };
@@ -102,15 +102,21 @@ export function createContext(_currentValue) {
   return context;
 }
 
-let id = 0;
 export function createElement(type, props, ...children) {
   props = props || {};
   props.children = children.flat(Infinity);
   return {
-    instance: id++,
     type,
     props
   };
+}
+
+function getHooks(element) {
+  _currentComponent = getComponentInstance(element);
+  if (!_componentHooksMap.has(_currentComponent)) {
+    _componentHooksMap.set(_currentComponent, []);
+  }
+  return _componentHooksMap.get(_currentComponent);
 }
 
 export function Component(props) {
@@ -188,13 +194,7 @@ function renderComponents(element = null, parent = _parent) {
   }
 
   if (typeof element.type === "function") {
-    _currentComponent = getComponentInstance(element);
-    if (!_componentHooksMap.has(_currentComponent)) {
-      _componentHooksMap.set(_currentComponent, []);
-    }
-
-    _hooks = _componentHooksMap.get(_currentComponent);
-
+    _hooks = getHooks(element);
     try {
       if (
         element.type.prototype &&
@@ -235,8 +235,7 @@ function renderComponents(element = null, parent = _parent) {
 }
 
 function renderClassComponent(Component, props, error) {
-  const instanceCursor = _hookCursor++;
-  const instance = _hooks[instanceCursor] || new Component(props);
+  const instance = new Component(props);
   if (error) {
     instance.componentDidCatch(error);
   }
@@ -274,7 +273,6 @@ function commit(element, parent, createNode, updateNode) {
 }
 
 export function runComponentEffects() {
-  id = 0;
   if (!_oldEffects) {
     for (const [effect] of _effects) {
       effect();

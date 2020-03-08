@@ -1,16 +1,20 @@
 {
-  "name": "react",
-  "version": "1.0.0",
-  "description": "React example starter project",
+  "name": "faux-react",
+  "version": "0.0.0",
+  "description": "A library that's made in imitation of react",
   "keywords": [
     "react",
     "starter"
   ],
-  "main": "src/index.js",
-  "dependencies": {
-    "react-scripts": "3.0.1"
-  },
+  "files": ["dist"],
+  "source": "src/faux-react/index.js",
+  "main": "dist/faux-react.js",
+  "module": "dist/faux-react.module.js",
+  "unpkg": "dist/faux-react.umd.js",
+  "dependencies": {},
   "devDependencies": {
+    "react-scripts": "3.0.1",
+    "microbundle": "^0.11.0",
     "typescript": "3.3.3"
   },
   "scripts": {

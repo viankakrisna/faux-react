@@ -14,6 +14,21 @@ function Button(props) {
   );
 }
 
+function ListItem({ children, index, onClick }) {
+  React.useEffect(() => {
+    console.log(`List Item ${index} mounted`);
+    return () => {
+      console.log(`List Item ${index} unmounted`);
+    };
+  }, [index]);
+  return (
+    <li style={{ display: "flex" }}>
+      <div style={{ flex: 1 }}>{children}</div>
+      <Button onClick={onClick}>Delete</Button>
+    </li>
+  );
+}
+
 function Todo() {
   const [text, setText] = React.useState("");
   const [todos, setTodos] = React.useState([]);
@@ -39,18 +54,17 @@ function Todo() {
       </form>
       <ul>
         {todos.map((todo, index) => (
-          <li style={{ display: "flex" }}>
-            <div style={{ flex: 1 }}>{todo}</div>
-            <Button
-              onClick={() => {
-                setTodos(
-                  todos.filter((__, currentIndex) => index !== currentIndex)
-                );
-              }}
-            >
-              Delete
-            </Button>
-          </li>
+          <ListItem
+            key={index}
+            index={index}
+            onClick={() => {
+              setTodos(
+                todos.filter((__, currentIndex) => index !== currentIndex)
+              );
+            }}
+          >
+            {todo}
+          </ListItem>
         ))}
       </ul>
     </>
@@ -96,7 +110,9 @@ function ErrorComponent() {
 
 export default function App() {
   const [counter, setCounter] = React.useState(0);
-
+  React.useEffect(() => {
+    console.log("useEffect: App is mounted");
+  }, []);
   return (
     <>
       <CounterContext.Provider value={[counter, setCounter]}>

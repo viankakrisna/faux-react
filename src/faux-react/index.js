@@ -7,9 +7,16 @@ let _lastTree = new Map();
 let _errorComponent = null;
 let _errorProps = null;
 let _errorParent = null;
-let _renderer = {};
+let _rootElement = null;
 let _reactComponentKey = {};
 let _parent = null;
+let _currentComponent = {};
+let _currentParent = null;
+let _componentTree = {
+  children: []
+};
+let _currentIndex = 0;
+let _currentOwner = _componentTree;
 
 // START OF FAUX REACT
 export function useRef(value) {
@@ -42,6 +49,9 @@ export function useState(initialState) {
     _states[stateCursor] =
       typeof initialState === "function" ? initialState() : initialState;
   }
+  const component = _currentComponent;
+  const parent = _currentParent;
+  const currentIndex = _currentIndex;
   const currentState = _states[stateCursor];
   const updater =
     _states[callbackCursor] ||
@@ -51,14 +61,15 @@ export function useState(initialState) {
         typeof newState === "function" ? newState(currentState) : newState;
       if (updatedState !== currentState) {
         _states[stateCursor] = updatedState;
-        _renderer.update();
+        console.log(component, parent, "should update");
+        updateComponent(_rootElement, _parent, currentIndex);
       }
     };
   return [currentState, updater];
 }
 
 export function useEffect(cb, dependencies) {
-  _effects.push([cb, dependencies]);
+  _currentComponent.effects.push([cb, dependencies]);
 }
 
 export function useLayoutEffect(cb, dependencies) {
@@ -136,28 +147,30 @@ Suspense.prototype.render = function render() {
 // START OF FAUX REACT-DOM
 export function render(rootElement, parent) {
   _parent = parent;
-  _renderer.render = render;
+  _rootElement = rootElement;
 
   renderComponents(rootElement, parent);
   runComponentEffects();
-
-  _renderer.update = function updater() {
-    setTimeout(() => {
-      _hookCursor = 0;
-      if (_lastTree) {
-        _lastTree.clear();
-      }
-      _lastTree = _tree;
-      _tree = new Map();
-      renderComponents(rootElement, parent);
-      _states.length = _hookCursor;
-      removeUnusedDomNodes();
-      runComponentEffects();
-    });
-  };
 }
 
-function renderComponents(element = null, parent = _parent) {
+function updateComponent(element, parent, index) {
+  setTimeout(() => {
+    _hookCursor = 0;
+    if (_lastTree) {
+      _lastTree.clear();
+    }
+    _lastTree = _tree;
+    _tree = new Map();
+    _componentTree = {};
+    renderComponents(element, parent, index);
+    removeUnusedDomNodes();
+    runComponentEffects();
+    _states.length = _hookCursor;
+  });
+}
+
+function renderComponents(element = null, parent = _parent, index) {
+  _currentParent = parent;
   if (element === null) {
     return;
   }
@@ -166,16 +179,35 @@ function renderComponents(element = null, parent = _parent) {
     throw new Error("Component is returning undefined");
   }
 
+  if (Array.isArray(element)) {
+    let currentIndex = index;
+    for (const el of element) {
+      renderComponents(el, parent, currentIndex);
+      currentIndex++;
+    }
+    return;
+  }
+
   if (["string", "number"].includes(typeof element)) {
-    return commit(element, parent, createTextNode, updateTextNode);
+    commit(element, parent, createTextNode, updateTextNode, index);
   }
 
   if (typeof element.type === "string") {
-    return commit(element, parent, createNode, updateNode);
+    commit(element, parent, createNode, updateNode, index);
   }
 
   if (typeof element.type === "function") {
     try {
+      const component = {
+        children: [],
+        parent: _currentOwner,
+        effects: [],
+        state: [],
+        element
+      };
+      _currentOwner.children.push(component);
+      _currentComponent = component;
+      _currentOwner = component;
       if (
         element.type.prototype &&
         element.type.prototype.reactComponentKey === _reactComponentKey
@@ -187,26 +219,24 @@ function renderComponents(element = null, parent = _parent) {
         }
         return renderComponents(
           renderClassComponent(element.type, element.props),
-          parent
+          parent,
+          index
         );
       }
-      return renderComponents(element.type(element.props), parent);
+      return renderComponents(element.type(element.props), parent, index);
     } catch (error) {
       if (_errorComponent) {
         renderComponents(
           renderClassComponent(_errorComponent, _errorProps, error),
-          _errorParent
+          _errorParent,
+          index
         );
       } else {
         console.error(error);
         throw error;
       }
-    }
-  }
-
-  if (Array.isArray(element)) {
-    for (const el of element) {
-      renderComponents(el, parent);
+    } finally {
+      _currentOwner = _currentComponent.parent;
     }
   }
 }
@@ -220,7 +250,7 @@ function renderClassComponent(Component, props, error) {
   return instance.render();
 }
 
-function commit(element, parent, createNode, updateNode) {
+function commit(element, parent, createNode, updateNode, index) {
   const lastFamily = _lastTree.get(parent);
   let child = null;
 
@@ -237,11 +267,19 @@ function commit(element, parent, createNode, updateNode) {
       child = updateNode(element, lastChild);
     } else {
       child = updateNode(element, createNode(element));
-      parent.appendChild(child);
+      if (parent.children[index]) {
+        parent.replaceChild(child, parent.children[index]);
+      } else {
+        parent.appendChild(child);
+      }
     }
   } else {
     child = updateNode(element, createNode(element));
-    parent.appendChild(child);
+    if (parent.children[index]) {
+      parent.replaceChild(child, parent.children[index]);
+    } else {
+      parent.appendChild(child);
+    }
   }
   family.add(child);
 
@@ -258,12 +296,14 @@ export function runComponentEffects() {
   } else {
     let index = 0;
     for (const currentEffect of _effects) {
-      const [effect, dependencies] = currentEffect;
-      const oldEffect = _oldEffects[index];
+      const [effect, dependencies, currentComponent] = currentEffect;
+      console.log(currentComponent);
+      const oldEffect = _oldEffects[index] || [];
       index++;
 
       const oldDeps = oldEffect[1] || [];
       if (
+        dependencies &&
         dependencies.every(
           (dependency, dependencyIndex) =>
             dependency === oldDeps[dependencyIndex]

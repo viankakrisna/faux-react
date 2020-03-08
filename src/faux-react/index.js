@@ -1,5 +1,5 @@
 let _hookCursor = 0;
-let _states = [];
+let _hooks = [];
 let _effects = [];
 let _oldEffects = null;
 let _tree = new Map();
@@ -10,6 +10,8 @@ let _errorParent = null;
 let _renderer = {};
 let _reactComponentKey = {};
 let _parent = null;
+let _currentComponent = 0;
+let _componentHooksMap = new Map();
 
 // START OF FAUX REACT
 export function useRef(value) {
@@ -20,14 +22,21 @@ export function useMemo(expensive, deps) {
   const valueCursor = _hookCursor++;
   const depsCursor = _hookCursor++;
 
-  const oldDeps = _states[depsCursor] || [];
+  const oldDeps = _hooks[depsCursor] || [];
   if (deps.some((dep, index) => dep !== oldDeps[index])) {
-    _states[valueCursor] = expensive();
+    _hooks[valueCursor] = expensive();
   }
-  _states[depsCursor] = deps;
+  _hooks[depsCursor] = deps;
 
-  const value = _states[valueCursor];
+  const value = _hooks[valueCursor];
   return value;
+}
+
+function getComponentInstance(element) {
+  if (element.props.key) {
+    return element.props.key;
+  }
+  return element.type;
 }
 
 export function useCallback(callback, deps) {
@@ -38,19 +47,22 @@ export function useCallback(callback, deps) {
 export function useState(initialState) {
   const stateCursor = _hookCursor++;
   const callbackCursor = _hookCursor++;
-  if (_states[stateCursor] === undefined) {
-    _states[stateCursor] =
+  const component = _currentComponent;
+  if (_hooks[stateCursor] === undefined) {
+    _hooks[stateCursor] =
       typeof initialState === "function" ? initialState() : initialState;
   }
-  const currentState = _states[stateCursor];
+  const currentState = _hooks[stateCursor];
   const updater =
-    _states[callbackCursor] ||
+    _hooks[callbackCursor] ||
     function stateUpdater(newState) {
-      const currentState = _states[stateCursor];
+      _currentComponent = component;
+      _hooks = _componentHooksMap.get(_currentComponent);
+      const currentState = _hooks[stateCursor];
       const updatedState =
         typeof newState === "function" ? newState(currentState) : newState;
       if (updatedState !== currentState) {
-        _states[stateCursor] = updatedState;
+        _hooks[stateCursor] = updatedState;
         _renderer.update();
       }
     };
@@ -90,10 +102,12 @@ export function createContext(_currentValue) {
   return context;
 }
 
+let id = 0;
 export function createElement(type, props, ...children) {
   props = props || {};
   props.children = children.flat(Infinity);
   return {
+    instance: id++,
     type,
     props
   };
@@ -137,23 +151,22 @@ Suspense.prototype.render = function render() {
 export function render(rootElement, parent) {
   _parent = parent;
   _renderer.render = render;
+  _hookCursor = 0;
 
   renderComponents(rootElement, parent);
   runComponentEffects();
 
   _renderer.update = function updater() {
-    setTimeout(() => {
-      _hookCursor = 0;
-      if (_lastTree) {
-        _lastTree.clear();
-      }
-      _lastTree = _tree;
-      _tree = new Map();
-      renderComponents(rootElement, parent);
-      _states.length = _hookCursor;
-      removeUnusedDomNodes();
-      runComponentEffects();
-    });
+    _hookCursor = 0;
+
+    if (_lastTree) {
+      _lastTree.clear();
+    }
+    _lastTree = _tree;
+    _tree = new Map();
+    renderComponents(rootElement, parent);
+    removeUnusedDomNodes();
+    runComponentEffects();
   };
 }
 
@@ -175,6 +188,13 @@ function renderComponents(element = null, parent = _parent) {
   }
 
   if (typeof element.type === "function") {
+    _currentComponent = getComponentInstance(element);
+    if (!_componentHooksMap.has(_currentComponent)) {
+      _componentHooksMap.set(_currentComponent, []);
+    }
+
+    _hooks = _componentHooksMap.get(_currentComponent);
+
     try {
       if (
         element.type.prototype &&
@@ -201,6 +221,9 @@ function renderComponents(element = null, parent = _parent) {
         console.error(error);
         throw error;
       }
+    } finally {
+      _currentComponent = null;
+      _hooks = null;
     }
   }
 
@@ -213,7 +236,7 @@ function renderComponents(element = null, parent = _parent) {
 
 function renderClassComponent(Component, props, error) {
   const instanceCursor = _hookCursor++;
-  const instance = _states[instanceCursor] || new Component(props);
+  const instance = _hooks[instanceCursor] || new Component(props);
   if (error) {
     instance.componentDidCatch(error);
   }
@@ -251,6 +274,7 @@ function commit(element, parent, createNode, updateNode) {
 }
 
 export function runComponentEffects() {
+  id = 0;
   if (!_oldEffects) {
     for (const [effect] of _effects) {
       effect();

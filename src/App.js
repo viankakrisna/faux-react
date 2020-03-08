@@ -21,10 +21,17 @@ function ListItem({ children, index, onClick }) {
       console.log(`List Item ${index} unmounted`);
     };
   }, [index]);
+  const [isCompleted, setIsCompleted] = React.useState(false);
   return (
-    <li style={{ display: "flex" }}>
+    <li
+      style={{
+        display: "flex",
+        textDecoration: isCompleted ? "line-through" : null
+      }}
+    >
       <div style={{ flex: 1 }}>{children}</div>
       <Button onClick={onClick}>Delete</Button>
+      <Button onClick={() => setIsCompleted(!isCompleted)}>Complete</Button>
     </li>
   );
 }
@@ -55,7 +62,7 @@ function Todo() {
       <ul>
         {todos.map((todo, index) => (
           <ListItem
-            key={index}
+            key={todo}
             index={index}
             onClick={() => {
               setTodos(

@@ -259,7 +259,7 @@ export function runComponentEffects() {
     let index = 0;
     for (const currentEffect of _effects) {
       const [effect, dependencies] = currentEffect;
-      const oldEffect = _oldEffects[index];
+      const oldEffect = _oldEffects[index] || [];
       index++;
 
       const oldDeps = oldEffect[1] || [];

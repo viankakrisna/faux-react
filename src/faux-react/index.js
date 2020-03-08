@@ -150,8 +150,8 @@ export function render(rootElement, parent) {
       _lastTree = _tree;
       _tree = new Map();
       renderComponents(rootElement, parent);
-      removeUnusedDomNodes();
       _states.length = _hookCursor;
+      removeUnusedDomNodes();
       runComponentEffects();
     });
   };

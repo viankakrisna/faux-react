@@ -1,15 +1,15 @@
-let internalHookCursor = 0;
-let internalStates = [];
-let internalEffects = [];
-let internalOldEffects = null;
-let internalTree = new Map();
-let internalLastTree = new Map();
-let internalErrorComponent = null;
-let internalErrorProps = null;
-let internalErrorParent = null;
-let internalRenderer = {};
-let internalReactComponentKey = {};
-let internalParent = null;
+let _hookCursor = 0;
+let _states = [];
+let _effects = [];
+let _oldEffects = null;
+let _tree = new Map();
+let _lastTree = new Map();
+let _errorComponent = null;
+let _errorProps = null;
+let _errorParent = null;
+let _renderer = {};
+let _reactComponentKey = {};
+let _parent = null;
 
 // START OF FAUX REACT
 export function useRef(value) {
@@ -17,16 +17,16 @@ export function useRef(value) {
 }
 
 export function useMemo(expensive, deps) {
-  const valueCursor = internalHookCursor++;
-  const depsCursor = internalHookCursor++;
+  const valueCursor = _hookCursor++;
+  const depsCursor = _hookCursor++;
 
-  const oldDeps = internalStates[depsCursor] || [];
+  const oldDeps = _states[depsCursor] || [];
   if (deps.some((dep, index) => dep !== oldDeps[index])) {
-    internalStates[valueCursor] = expensive();
+    _states[valueCursor] = expensive();
   }
-  internalStates[depsCursor] = deps;
+  _states[depsCursor] = deps;
 
-  const value = internalStates[valueCursor];
+  const value = _states[valueCursor];
   return value;
 }
 
@@ -36,33 +36,33 @@ export function useCallback(callback, deps) {
 }
 
 export function useState(initialState) {
-  const stateCursor = internalHookCursor++;
-  const callbackCursor = internalHookCursor++;
-  if (internalStates[stateCursor] === undefined) {
-    internalStates[stateCursor] =
+  const stateCursor = _hookCursor++;
+  const callbackCursor = _hookCursor++;
+  if (_states[stateCursor] === undefined) {
+    _states[stateCursor] =
       typeof initialState === "function" ? initialState() : initialState;
   }
-  const currentState = internalStates[stateCursor];
+  const currentState = _states[stateCursor];
   const updater =
-    internalStates[callbackCursor] ||
+    _states[callbackCursor] ||
     function stateUpdater(newState) {
-      const currentState = internalStates[stateCursor];
+      const currentState = _states[stateCursor];
       const updatedState =
         typeof newState === "function" ? newState(currentState) : newState;
       if (updatedState !== currentState) {
-        internalStates[stateCursor] = updatedState;
-        internalRenderer.update();
+        _states[stateCursor] = updatedState;
+        _renderer.update();
       }
     };
   return [currentState, updater];
 }
 
 export function useEffect(cb, dependencies) {
-  internalEffects.push([cb, dependencies]);
+  _effects.push([cb, dependencies]);
 }
 
 export function useLayoutEffect(cb, dependencies) {
-  internalEffects.push([cb, dependencies]);
+  _effects.push([cb, dependencies]);
 }
 
 export function useContext(context) {
@@ -108,7 +108,7 @@ export function Component(props) {
   };
 }
 
-Component.prototype.reactComponentKey = internalReactComponentKey;
+Component.prototype.reactComponentKey = _reactComponentKey;
 
 export function Suspense(...args) {
   this.state = {
@@ -136,16 +136,16 @@ Suspense.prototype.render = function render() {
 // START OF FAUX REACT-DOM
 export function render(rootElement, parent) {
   renderComponents(rootElement, parent);
-  internalParent = parent;
-  internalRenderer.render = render;
-  internalRenderer.update = function updater() {
+  _parent = parent;
+  _renderer.render = render;
+  _renderer.update = function updater() {
     setTimeout(() => {
-      internalHookCursor = 0;
-      if (internalLastTree) {
-        internalLastTree.clear();
+      _hookCursor = 0;
+      if (_lastTree) {
+        _lastTree.clear();
       }
-      internalLastTree = internalTree;
-      internalTree = new Map();
+      _lastTree = _tree;
+      _tree = new Map();
       renderComponents(rootElement, parent);
       removeUnusedDomNodes();
       runComponentEffects();
@@ -153,7 +153,7 @@ export function render(rootElement, parent) {
   };
 }
 
-function renderComponents(element = null, parent = internalParent) {
+function renderComponents(element = null, parent = _parent) {
   if (element === null) {
     return;
   }
@@ -174,12 +174,12 @@ function renderComponents(element = null, parent = internalParent) {
     try {
       if (
         element.type.prototype &&
-        element.type.prototype.reactComponentKey === internalReactComponentKey
+        element.type.prototype.reactComponentKey === _reactComponentKey
       ) {
         if (element.type.prototype.componentDidCatch) {
-          internalErrorComponent = element.type;
-          internalErrorProps = element.props;
-          internalErrorParent = parent;
+          _errorComponent = element.type;
+          _errorProps = element.props;
+          _errorParent = parent;
         }
         return renderComponents(
           renderClassComponent(element.type, element.props),
@@ -188,14 +188,10 @@ function renderComponents(element = null, parent = internalParent) {
       }
       return renderComponents(element.type(element.props), parent);
     } catch (error) {
-      if (internalErrorComponent) {
+      if (_errorComponent) {
         renderComponents(
-          renderClassComponent(
-            internalErrorComponent,
-            internalErrorProps,
-            error
-          ),
-          internalErrorParent
+          renderClassComponent(_errorComponent, _errorProps, error),
+          _errorParent
         );
       } else {
         console.error(error);
@@ -210,8 +206,8 @@ function renderComponents(element = null, parent = internalParent) {
 }
 
 function renderClassComponent(Component, props, error) {
-  const instanceCursor = internalHookCursor++;
-  const instance = internalStates[instanceCursor] || new Component(props);
+  const instanceCursor = _hookCursor++;
+  const instance = _states[instanceCursor] || new Component(props);
   if (error) {
     instance.componentDidCatch(error);
   }
@@ -219,14 +215,14 @@ function renderClassComponent(Component, props, error) {
 }
 
 function commit(element, parent, createNode, updateNode) {
-  const lastFamily = internalLastTree.get(parent);
+  const lastFamily = _lastTree.get(parent);
   let child = null;
 
-  if (!internalTree.has(parent)) {
-    internalTree.set(parent, new Set());
+  if (!_tree.has(parent)) {
+    _tree.set(parent, new Set());
   }
 
-  const family = internalTree.get(parent);
+  const family = _tree.get(parent);
 
   if (lastFamily) {
     const lastFamilyArray = [...lastFamily];
@@ -249,16 +245,16 @@ function commit(element, parent, createNode, updateNode) {
 }
 
 export function runComponentEffects() {
-  internalStates.length = internalHookCursor;
-  internalHookCursor = 0;
+  _states.length = _hookCursor;
+  _hookCursor = 0;
 
-  if (!internalOldEffects) {
-    internalEffects.forEach(([effect]) => {
+  if (!_oldEffects) {
+    _effects.forEach(([effect]) => {
       effect();
     });
   } else {
-    internalEffects.forEach(([effect, dependencies], index) => {
-      const oldEffect = internalOldEffects[index];
+    _effects.forEach(([effect, dependencies], index) => {
+      const oldEffect = _oldEffects[index];
       const oldDeps = oldEffect[1] || [];
       if (
         dependencies.every(
@@ -272,18 +268,18 @@ export function runComponentEffects() {
       if (typeof oldEffect[0] === "function") {
         oldEffect[0]();
       }
-      internalEffects[index][0] = effect();
+      _effects[index][0] = effect();
     });
   }
-  internalOldEffects = internalEffects;
-  internalEffects = [];
+  _oldEffects = _effects;
+  _effects = [];
 }
 
 function removeUnusedDomNodes() {
-  for (const [parent, children] of internalLastTree) {
-    if (internalTree.has(parent)) {
+  for (const [parent, children] of _lastTree) {
+    if (_tree.has(parent)) {
       for (const child of children) {
-        if (!internalTree.get(parent).has(child)) {
+        if (!_tree.get(parent).has(child)) {
           child.remove();
         }
       }

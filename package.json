@@ -1,11 +1,12 @@
 {
   "name": "faux-react",
-  "version": "1.0.0",
+  "version": "0.0.0",
   "description": "A library that's made in imitation of react",
   "keywords": [
     "react",
     "starter"
   ],
+  "files": ["dist"],
   "source": "src/faux-react/index.js",
   "main": "dist/faux-react.js",
   "module": "dist/faux-react.module.js",
